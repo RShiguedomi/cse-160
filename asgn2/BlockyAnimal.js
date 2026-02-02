@@ -90,11 +90,13 @@ let g_upperArmAnimation=true;
 let g_upperLegAnimation=true;
 let g_lowerLeg1Animation=true;
 let g_lowerLeg2Animation=true;
+let g_tailAnimation=true;
 let g_footAnimation=true;
 let g_upperArmAngle=0;
 let g_upperLegAngle=0;
 let g_lowerLeg1Angle=0;
 let g_lowerLeg2Angle=0;
+let g_tailAngle=0;
 let g_footAngle=0;
 let g_globalAngle=0;
 let g_zoom=0;
@@ -109,6 +111,8 @@ function addActionsForHtmlUI() {
   document.getElementById('animationLowerLeg1OffButton').onclick = function() {g_lowerLeg1Animation=false;};
   document.getElementById('animationLowerLeg2OnButton').onclick = function() {g_lowerLeg2Animation=true;};
   document.getElementById('animationLowerLeg2OffButton').onclick = function() {g_lowerLeg2Animation=false;};
+  document.getElementById('animationTailOnButton').onclick = function() {g_tailAnimation=true;};
+  document.getElementById('animationTailOffButton').onclick = function() {g_tailAnimation=false;};
   document.getElementById('animationFootOnButton').onclick = function() {g_footAnimation=true;};
   document.getElementById('animationFootOffButton').onclick = function() {g_footAnimation=false;};
 
@@ -116,6 +120,7 @@ function addActionsForHtmlUI() {
   document.getElementById('upperLegSlide').addEventListener('mousemove', function() { g_upperLegAngle = this.value; renderAllShapes(); });
   document.getElementById('lowerLeg1Slide').addEventListener('mousemove', function() { g_lowerLeg1Angle = this.value; renderAllShapes(); });
   document.getElementById('lowerLeg2Slide').addEventListener('mousemove', function() { g_lowerLeg2Angle = this.value; renderAllShapes(); });
+  document.getElementById('tailSlide').addEventListener('mousemove', function() { g_tailAngle = this.value; renderAllShapes(); });
   document.getElementById('footSlide').addEventListener('mousemove', function() { g_footAngle = this.value; renderAllShapes(); });
 
   document.getElementById('angleSlide').addEventListener('mousemove', function() { g_globalAngle = this.value; renderAllShapes(); });
@@ -171,13 +176,16 @@ function updateAnimationAngles() {
     g_upperLegAngle = (17.5+17.5*Math.cos(g_seconds));
   }
   if (g_lowerLeg1Animation) {
-    g_lowerLeg1Angle = (5-5*Math.cos(g_seconds));
+    g_lowerLeg1Angle = (10-10*Math.cos(g_seconds));
   }
   if (g_lowerLeg2Animation) {
-    g_lowerLeg2Angle = (Math.cos(g_seconds));
+    g_lowerLeg2Angle = (5-5*Math.cos(g_seconds));
   }
   if (g_footAnimation) {
     g_footAngle = (25+25*Math.cos(g_seconds));
+  }
+  if (g_tailAnimation) {
+    g_tailAngle = (-45*Math.sin(g_seconds));
   }
 }
 
@@ -228,9 +236,12 @@ function renderAllShapes() {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.clear(gl.COLOR_BUFFER_BIT); 
 
+  // Set uniform color variable
+  var uniformColor = [.25,.22,.22,1];
+
   // Draw body cube
   var body = new Cube();
-  body.color = [1,0,0,1];
+  body.color = uniformColor;
   body.matrix.translate(-.15,-.3,-.4);
   body.matrix.rotate(0,1,0,0);
   body.matrix.scale(.3,.45,1.2);
@@ -238,8 +249,8 @@ function renderAllShapes() {
 
   // Draw left fore leg
   var leftarm = new Cube();
-  leftarm.color = [1,1,0,1];
-  leftarm.matrix.setTranslate(0.1,-.1,-.33);
+  leftarm.color = uniformColor;
+  leftarm.matrix.setTranslate(.1,-.1,-.33);
   //leftarm.matrix.rotate(0,1,0,0);
   leftarm.matrix.rotate(180-g_upperArmAngle,1,0,0); 
   var lForearm = new Matrix4(leftarm.matrix);
@@ -247,8 +258,8 @@ function renderAllShapes() {
   leftarm.render();
 
   var leftForearm = new Cube();
-  leftForearm.color = [1,1,0,1];
-  leftForearm.matrix = lForearm;
+  leftForearm.color = uniformColor;
+  leftForearm.matrix = new Matrix4(lForearm);
   leftForearm.matrix.translate(0,.35,0);
   leftForearm.matrix.rotate(g_upperArmAngle,1,0,0);
   var lPaw = new Matrix4(leftForearm.matrix);
@@ -257,8 +268,8 @@ function renderAllShapes() {
   leftForearm.render();
 
   var leftPaw = new Cube();
-  leftPaw.color = [1,1,0,1];
-  leftPaw.matrix = lPaw;
+  leftPaw.color = uniformColor;
+  leftPaw.matrix = new Matrix4(lPaw);
   leftPaw.matrix.translate(0,.28,-.13);
   leftPaw.matrix.rotate(180-g_upperArmAngle,1,0,0);
   leftPaw.matrix.translate(0,-.07,0);
@@ -267,7 +278,7 @@ function renderAllShapes() {
 
   // Draw right fore leg
   var rightarm = new Cube();
-  rightarm.color = [1,1,0,1];
+  rightarm.color = uniformColor;
   rightarm.matrix.setTranslate(-0.1,-.1,-.33);
   //rightarm.matrix.rotate(-5,1,0,0);
   rightarm.matrix.rotate(135+g_upperArmAngle,1,0,0); 
@@ -276,8 +287,8 @@ function renderAllShapes() {
   rightarm.render();
 
   var rightForearm = new Cube();
-  rightForearm.color = [1,1,0,1];
-  rightForearm.matrix = rForearm;
+  rightForearm.color = uniformColor;
+  rightForearm.matrix = new Matrix4(rForearm);
   rightForearm.matrix.translate(0,.35,0);
   rightForearm.matrix.rotate(45-g_upperArmAngle,1,0,0);
   var rPaw = new Matrix4(rightForearm.matrix);
@@ -286,8 +297,8 @@ function renderAllShapes() {
   rightForearm.render();
 
   var rightPaw = new Cube();
-  rightPaw.color = [1,1,0,1];
-  rightPaw.matrix = rPaw;
+  rightPaw.color = uniformColor;
+  rightPaw.matrix = new Matrix4(rPaw);
   rightPaw.matrix.translate(0,.28,-.13);
   rightPaw.matrix.rotate(135+g_upperArmAngle,1,0,0);
   rightPaw.matrix.translate(0,-.07,0);
@@ -296,9 +307,8 @@ function renderAllShapes() {
 
   // Draw left hind leg
   var leftleg = new Cube();
-  leftleg.color = [1,0,1,1];
+  leftleg.color = uniformColor;
   leftleg.matrix.setTranslate(0.1,0,0.7);
-  leftleg.matrix.rotate(0,1,0,0);
   leftleg.matrix.rotate(180+g_upperLegAngle,1,0,0);
   var lHindleg1 = new Matrix4(leftleg.matrix);
   leftleg.matrix.translate(0,-.07,.15);
@@ -306,39 +316,38 @@ function renderAllShapes() {
   leftleg.render();
 
   var leftHindleg1 = new Cube();
-  leftHindleg1.color = [1,0,1,1];
-  leftHindleg1.matrix = lHindleg1;
+  leftHindleg1.color = uniformColor;
+  leftHindleg1.matrix = new Matrix4(lHindleg1);
   leftHindleg1.matrix.translate(.01,.51,.08);
-  leftHindleg1.matrix.rotate(290-g_lowerLeg1Angle,1,0,0);
+  leftHindleg1.matrix.rotate(270+g_lowerLeg1Angle,1,0,0);
   var lHindleg2 = new Matrix4(leftHindleg1.matrix);
   leftHindleg1.matrix.translate(0,-.07,0);
   leftHindleg1.matrix.scale(.12,.4,-.2);
   leftHindleg1.render();
 
   var leftHindleg2 = new Cube();
-  leftHindleg2.color = [1,0,1,1];
-  leftHindleg2.matrix = lHindleg2;
+  leftHindleg2.color = uniformColor;
+  leftHindleg2.matrix = new Matrix4(lHindleg2);
   leftHindleg2.matrix.translate(.01,.23,-.12);
-  leftHindleg2.matrix.rotate(90-g_lowerLeg2Angle,1,0,0);
+  leftHindleg2.matrix.rotate(95-g_lowerLeg2Angle,1,0,0);
   var lFoot = new Matrix4(leftHindleg2.matrix);
   leftHindleg2.matrix.translate(0,-.07,.02);
   leftHindleg2.matrix.scale(.1,.4,-.15);
   leftHindleg2.render();
 
   // var leftFoot = new Cube();
-  // leftFoot.color = [1,0,1,1];
-  // leftFoot.matrix = lFoot;
-  // leftFoot.matrix.translate(0,-.18,.075);
+  // leftFoot.color = [1,1,0,1];
+  // leftFoot.matrix = new Matrix4(lFoot);
+  // leftFoot.matrix.translate(0,.26,-.03);
   // leftFoot.matrix.rotate(g_footAngle,1,0,0);
-  // leftFoot.matrix.translate(0,.2,-.15);
+  // //leftFoot.matrix.translate(0,.2,-.15);
   // leftFoot.matrix.scale(.1,.2,-.1);
   // leftFoot.render();
 
   // Draw right hind leg
   var rightleg = new Cube();
-  rightleg.color = [1,0,1,1];
+  rightleg.color = uniformColor;
   rightleg.matrix.setTranslate(-.24,0,0.7);
-  rightleg.matrix.rotate(0,1,0,0);
   rightleg.matrix.rotate(215-g_upperLegAngle,1,0,0);
   var rHindleg1 = new Matrix4(rightleg.matrix);
   rightleg.matrix.translate(0,-.07,.15);
@@ -346,8 +355,8 @@ function renderAllShapes() {
   rightleg.render();
 
   var rightHindleg1 = new Cube();
-  rightHindleg1.color = [1,0,1,1];
-  rightHindleg1.matrix = rHindleg1;
+  rightHindleg1.color = uniformColor;
+  rightHindleg1.matrix = new Matrix4(rHindleg1);
   rightHindleg1.matrix.translate(.01,.51,.08);
   rightHindleg1.matrix.rotate(290-g_lowerLeg1Angle,1,0,0);
   var rHindleg2 = new Matrix4(rightHindleg1.matrix);
@@ -356,8 +365,8 @@ function renderAllShapes() {
   rightHindleg1.render();
 
   var rightHindleg2 = new Cube();
-  rightHindleg2.color = [1,0,1,1];
-  rightHindleg2.matrix = rHindleg2;
+  rightHindleg2.color = uniformColor;
+  rightHindleg2.matrix = new Matrix4(rHindleg2);
   rightHindleg2.matrix.translate(.01,.23,-.12);
   rightHindleg2.matrix.rotate(90-g_lowerLeg2Angle,1,0,0);
   var rFoot = new Matrix4(rightHindleg2.matrix);
@@ -367,57 +376,80 @@ function renderAllShapes() {
 
   // var rightFoot = new Cube();
   // rightFoot.color = [1,0,1,1];
-  // rightFoot.matrix = rFoot;
+  // rightFoot.matrix = new Matrix4(rFoot);
   // rightFoot.matrix.translate(0,-.18,.075);
   // rightFoot.matrix.rotate(g_footAngle,1,0,0);
   // rightFoot.matrix.translate(0,.2,-.15);
   // rightFoot.matrix.scale(.1,.2,-.1);
-  // leftFoot.render();
+  // rightFoot.render();
 
   // Draw head
   var head = new Cube();
-  head.color = [0,1,1,1];
+  head.color = uniformColor;
   head.matrix.setTranslate(-.185,.03,-.66);
   var box = new Matrix4(head.matrix);
   head.matrix.rotate(0,0,1,0);
   head.matrix.scale(.375,.33,.375);
   head.render();
 
+  var leftEye = new Cube();
+  leftEye.color = [1,1,0,1];
+  leftEye.matrix = new Matrix4(box);
+  leftEye.matrix.translate(0.06, 0.17, -0.01);
+  leftEye.matrix.scale(0.07, 0.07, 0.01);
+  leftEye.render();
+
+  var rightEye = new Cube();
+  rightEye.color = [1,1,0,1];
+  rightEye.matrix = new Matrix4(box);
+  rightEye.matrix.translate(0.25, 0.17, -0.01);
+  rightEye.matrix.scale(0.07, 0.07, 0.01);
+  rightEye.render();
+
   var nose = new Cube();
-  nose.color = [0,1,.5,1];
-  nose.matrix = box;
-  nose.matrix.translate(.08,0,-.075);
+  nose.color = uniformColor;
+  nose.matrix = new Matrix4(box);
+  nose.matrix.translate(.11,.03,-.075);
   nose.matrix.rotate(0,0,1,0);
   var box2 = new Matrix4(nose.matrix);
-  var box3 = new Matrix4(nose.matrix);
-  nose.matrix.scale(.225,.15,.075);
+  nose.matrix.scale(.15,.12,.075);
   nose.render();
 
   var leftEar = new Cube();
-  leftEar.color = [0,1,1,1];
-  leftEar.matrix = box2;
-  leftEar.matrix.translate(-.07,.28,.35);
+  leftEar.color = uniformColor;
+  leftEar.matrix = new Matrix4(box2);
+  leftEar.matrix.translate(-.1,.28,.35);
   leftEar.matrix.rotate(-50,0,0,1);
-  leftEar.matrix.scale(.26, .07, .05);
+  leftEar.matrix.scale(.26,.07,.09);
   leftEar.matrix.rotate(50,0,0,1);
   leftEar.render();
 
   var rightEar = new Cube();
-  rightEar.color = [0,1,1,1];
-  rightEar.matrix = box3;
-  rightEar.matrix.translate(.13,.18,.35);
+  rightEar.color = uniformColor;
+  rightEar.matrix = new Matrix4(box2);
+  rightEar.matrix.translate(.1,.18,.35);
   rightEar.matrix.rotate(50,0,0,1);
-  rightEar.matrix.scale(.26,.07,.05);
+  rightEar.matrix.scale(.26,.07,.09);
   rightEar.matrix.rotate(-50,0,0,1);
   rightEar.render();
 
   // Draw tail
   var tail1 = new Cylinder();
-  tail1.color = [0,0,1,1];
-  tail1.matrix.setTranslate(0, .3, .7);
-  tail1.matrix.rotate(90,1,0,0);
-  tail1.matrix.scale(.07,.5,.07);
+  tail1.color = uniformColor;
+  tail1.matrix.setTranslate(0, .1, .7);
+  tail1.matrix.rotate(-g_tailAngle,0,1,0);
+  var t2 = new Matrix4(tail1.matrix);
+  tail1.matrix.rotate(65,1,0,0);
+  tail1.matrix.scale(.07,.4,.07);
   tail1.render();
+
+  var tail2 = new Cylinder();
+  tail2.color = uniformColor;
+  tail2.matrix = t2;
+  tail2.matrix.translate(0, .14, .32);
+  tail2.matrix.rotate(45,1,0,0);
+  tail2.matrix.scale(.05,.3,.05);
+  tail2.render();
 
   var K = 10.0;
   for (var i=1; i<K; i++) {
