@@ -97,6 +97,8 @@ let g_lowerLeg1Angle=0;
 let g_lowerLeg2Angle=0;
 let g_footAngle=0;
 let g_globalAngle=0;
+let g_zoom=0;
+
 // Set up actions for HTML UI elements
 function addActionsForHtmlUI() {
   document.getElementById('animationYellowOnButton').onclick = function() {g_upperArmAnimation=true;};
@@ -117,6 +119,7 @@ function addActionsForHtmlUI() {
   document.getElementById('footSlide').addEventListener('mousemove', function() { g_footAngle = this.value; renderAllShapes(); });
 
   document.getElementById('angleSlide').addEventListener('mousemove', function() { g_globalAngle = this.value; renderAllShapes(); });
+  document.getElementById('zoomSlide').addEventListener('mousemove', function() { g_zoom = this.value; renderAllShapes(); });
 }
 
 function main() {
@@ -218,6 +221,7 @@ function renderAllShapes() {
   var startTime = performance.now();
 
   var globalRotMat = new Matrix4().rotate(g_globalAngle,0,1,0);
+  globalRotMat.translate(0, 0, g_zoom/45);
   gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
 
   // Clear <canvas>
@@ -406,6 +410,14 @@ function renderAllShapes() {
   rightEar.matrix.scale(.26,.07,.05);
   rightEar.matrix.rotate(-50,0,0,1);
   rightEar.render();
+
+  // Draw tail
+  var tail1 = new Cylinder();
+  tail1.color = [0,0,1,1];
+  tail1.matrix.setTranslate(0, .3, .7);
+  tail1.matrix.rotate(90,1,0,0);
+  tail1.matrix.scale(.07,.5,.07);
+  tail1.render();
 
   var K = 10.0;
   for (var i=1; i<K; i++) {
