@@ -121,6 +121,12 @@ function connectVariablesToGLSL() {
     return false;
   }
 
+  u_whichTexture = gl.getUniformLocation(gl.program, 'u_whichTexture');
+  if (!u_whichTexture) {
+    console.log('Failed to get storage location of u_whichTexture');
+    return false;
+  }
+
   // Set an initial value for this matrix to identity
   var identityM = new Matrix4();
   gl.uniformMatrix4fv(u_ModelMatrix, false, identityM.elements);
@@ -175,11 +181,6 @@ function addActionsForHtmlUI() {
 }
 
 function initTextures() {
-  // var u_Sampler0 = gl.getUniformLocation(gl.program, 'u_Sampler0');
-  // if (!u_Sampler0) {
-  //   console.log('Failed to get storage location of u_Sampler0');
-  //   return false;
-  // }
   var image = new Image();
   if (!image) {
     console.log('Failed to create image object');
@@ -199,12 +200,18 @@ function sendImageToTEXTURE0(image) {
     console.log('Failed to create texture object');
     return false;
   }
+  // Flip image's y axis
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+  // Enable texture unit0 (0-8)
   gl.activeTexture(gl.TEXTURE0);
+  // Bind texture object to the target
   gl.bindTexture(gl.TEXTURE_2D, texture);
 
+  // Set the texture parameters
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set texture image
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+  // Set texture unit 0 to sampler
   gl.uniform1i(u_Sampler0, 0);
   
   console.log('finished loadTexture');
@@ -221,6 +228,8 @@ function main() {
   // Register function (event handler) to be called on a mouse press
   // canvas.onmousedown = click;
   // canvas.onmousemove = function(ev) { if(ev.buttons == 1) { click(ev) } };
+  document.onkeydown = keydown;
+  
   initTextures();
 
   // Specify the color for clearing <canvas>
@@ -308,14 +317,36 @@ function convertCoordinatesEventToGL(ev) {
   return([x, y]);
 }
 
+function keydown(ev) {
+  if (ev.keyCode==65) { // A - go left
+    g_eye[0] += 0.2;
+  } else if (ev.keyCode==68) {  // D - go right
+    g_eye[0] -= 0.2;
+  }
+
+  renderAllShapes();
+  console.log(ev.keyCode);
+}
+
+var g_eye = [0,0,3]; // (eye, at, up) (0,1,2,  0,0,-100,  0,1,0) for 3rd person view
+var g_at = [0,0,-100];
+var g_up = [0,1,0];
+
 function renderAllShapes() {
   // Check time at start of this function
   var startTime = performance.now();
 
   var projMat = new Matrix4();
+  projMat.setPerspective(50, 1*canvas.width/canvas.height, .1, 100);
   gl.uniformMatrix4fv(u_ProjectionMatrix, false, projMat.elements);
 
   var viewMat = new Matrix4();
+  viewMat.setLookAt(g_eye[0], g_eye[1], g_eye[2], g_at[0], g_at[1], g_at[2], g_up[0], g_up[1], g_up[2]);
+  // viewMat.setLookAt(
+  //     g_camera.eye.x, g_camera.eye.y,  g_camera.eye.z,
+  //     g_camera.at.x,  g_camera.at.y,   g_camera.at.z,
+  //     g_camera.up.x,  g_camera.up.y,   g_camera.up.z);
+  viewMat.setLookAt(0,1,2,  0,0,-100,  0,1,0); 
   gl.uniformMatrix4fv(u_ViewMatrix, false, viewMat.elements);
 
   var globalRotMat = new Matrix4().rotate(g_globalAngle,0,1,0);
@@ -328,6 +359,22 @@ function renderAllShapes() {
 
   // Set uniform color variable
   var uniformColor = [.25,.22,.22,1];
+
+  // Draw floor
+  var body = new Cube();
+  body.color = [1.0,0.0,0.0,1.0];
+  body.textureNum=-2;
+  body.matrix.translate(0, -.8, 0);
+  body.matrix.scale(10, 0, 10);
+  body.matrix.translate(-.5, 0, -.5);
+  body.render();
+
+  var sky = new Cube();
+  sky.color = [1.0,0.0,0.0,1.0];
+  sky.textureNum=1;
+  sky.matrix.scale(50,50,50);
+  sky.matrix.translate(-.5,-.5,-.5);
+  sky.render();
 
   // Draw body cube
   var body = new Cube();
@@ -543,14 +590,14 @@ function renderAllShapes() {
   tail2.matrix.scale(.05,.3,.05);
   tail2.render();
 
-  var K = 10.0;
-  for (var i=1; i<K; i++) {
-    var c = new Cube();
-    c.matrix.translate(-.8, 1.9*i/K-1.0, 0);
-    c.matrix.rotate(g_seconds*100,1,1,1);
-    c.matrix.scale(.1, .5/K, 1.0/K);
-    c.render();
-  }
+  // var K = 10.0;
+  // for (var i=1; i<K; i++) {
+  //   var c = new Cube();
+  //   c.matrix.translate(-.8, 1.9*i/K-1.0, 0);
+  //   c.matrix.rotate(g_seconds*100,1,1,1);
+  //   c.matrix.scale(.1, .5/K, 1.0/K);
+  //   c.render();
+  // }
   
   var duration = performance.now() - startTime;
   sendTextToHTML("ms: " + Math.floor(duration) + " fps: " + Math.floor(10000/duration)/10, "ms");

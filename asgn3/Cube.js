@@ -6,7 +6,7 @@ class Cube{
     //this.size = 5.0;
     //this.segment = 10;
     this.matrix = new Matrix4();
-    this.textureNum=0;
+    this.textureNum=-2;
   }
   // Render this shape
   render() {
@@ -26,7 +26,7 @@ class Cube{
 
     // Front
     //drawTriangle3D( [0.0,0.0,0.0,  1.0,1.0,0.0,  1.0,0.0,0.0] );
-    drawTriangle3DUV( [0,0,0,   1,1,0,   1,0,0], [1,0,  0,1,  1,1] );
+    drawTriangle3DUV( [0,0,0,   1,1,0,   1,0,0], [0,0,  1,1,  1,0] );
     drawTriangle3DUV( [0,0,0,   0,1,0,   1,1,0], [0,0,  0,1,  1,1] );
 
     // Pass the color of a point to u_FragColor uniform variable
