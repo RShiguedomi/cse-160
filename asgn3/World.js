@@ -60,7 +60,6 @@ function setupWebGL() {
   canvas = document.getElementById('webgl');
 
   // Get the rendering context for WebGL
-  //gl = getWebGLContext(canvas);
   gl = canvas.getContext("webgl", { preserveDrawingBuffer: true});
   if (!gl) {
     console.log('Failed to get the rendering context for WebGL');
@@ -152,19 +151,14 @@ function connectVariablesToGLSL() {
   gl.uniformMatrix4fv(u_ModelMatrix, false, identityM.elements);
 }
 
-const POINT = 0;
-const TRIANGLE = 1;
-const CIRCLE = 2;
+const IDLE_UPPER_ARM = 0;
+const IDLE_UPPER_LEG = 0;
+const IDLE_LOWER_LEG1 = 0;
+const IDLE_LOWER_LEG2 = 0;
+const IDLE_FOOT = 0;
+const IDLE_TAIL = 0;
 
-let g_selectedColor=[1.0,1.0,1.0,1.0];
-let g_selectedSize=5;
-let g_selectedType=POINT;
-let g_upperArmAnimation=true;
-let g_upperLegAnimation=true;
-let g_lowerLeg1Animation=true;
-let g_lowerLeg2Animation=true;
-let g_tailAnimation=true;
-let g_footAnimation=true;
+let g_animations=false;
 let g_upperArmAngle=0;
 let g_upperLegAngle=0;
 let g_lowerLeg1Angle=0;
@@ -172,38 +166,30 @@ let g_lowerLeg2Angle=0;
 let g_tailAngle=0;
 let g_footAngle=0;
 let g_globalAngle=0;
-let g_zoom=0;
+
+var g_startTime=performance.now()/1000.0;
+var g_seconds=performance.now()/1000.0-g_startTime;
+
 // Mouse movement
 var g_yaw = -90; // Horizontal
 var g_pitch = 0; // Vertical
-var g_mouseSensitivity = 0.0005;
+var g_mouseSensitivity = 0.05;
 var g_lastX, g_lastY;
 var g_firstMouse = true;
 
+// Game variables
+var g_gameStarted=false;
+var g_gameOver=false;
+var g_gameWon=false;
+var g_elapsedTime=0;
+var g_timeLimit=300; //seconds
+var g_catPos=[-6.3,-.4,-6.5]; //same location as in drawCat
+
 // Set up actions for HTML UI elements
 function addActionsForHtmlUI() {
-  document.getElementById('animationYellowOnButton').onclick = function() {g_upperArmAnimation=true;};
-  document.getElementById('animationYellowOffButton').onclick = function() {g_upperArmAnimation=false;};
-  document.getElementById('animationMagentaOnButton').onclick = function() {g_upperLegAnimation=true;};
-  document.getElementById('animationMagentaOffButton').onclick = function() {g_upperLegAnimation=false;};
-  document.getElementById('animationLowerLeg1OnButton').onclick = function() {g_lowerLeg1Animation=true;};
-  document.getElementById('animationLowerLeg1OffButton').onclick = function() {g_lowerLeg1Animation=false;};
-  document.getElementById('animationLowerLeg2OnButton').onclick = function() {g_lowerLeg2Animation=true;};
-  document.getElementById('animationLowerLeg2OffButton').onclick = function() {g_lowerLeg2Animation=false;};
-  document.getElementById('animationTailOnButton').onclick = function() {g_tailAnimation=true;};
-  document.getElementById('animationTailOffButton').onclick = function() {g_tailAnimation=false;};
-  //document.getElementById('animationFootOnButton').onclick = function() {g_footAnimation=true;};
-  //document.getElementById('animationFootOffButton').onclick = function() {g_footAnimation=false;};
-
-  document.getElementById('upperArmSlide').addEventListener('mousemove', function() { g_upperArmAngle = this.value; renderAllShapes(); });
-  document.getElementById('upperLegSlide').addEventListener('mousemove', function() { g_upperLegAngle = this.value; renderAllShapes(); });
-  document.getElementById('lowerLeg1Slide').addEventListener('mousemove', function() { g_lowerLeg1Angle = this.value; renderAllShapes(); });
-  document.getElementById('lowerLeg2Slide').addEventListener('mousemove', function() { g_lowerLeg2Angle = this.value; renderAllShapes(); });
-  document.getElementById('tailSlide').addEventListener('mousemove', function() { g_tailAngle = this.value; renderAllShapes(); });
-  //document.getElementById('footSlide').addEventListener('mousemove', function() { g_footAngle = this.value; renderAllShapes(); });
-
-  document.getElementById('angleSlide').addEventListener('mousemove', function() { g_globalAngle = this.value; renderAllShapes(); });
-  //document.getElementById('zoomSlide').addEventListener('mousemove', function() { g_zoom = this.value; renderAllShapes(); });
+  // Buttons
+  document.getElementById('animationOnButton').onclick = function() {g_animations=true;};
+  document.getElementById('animationOffButton').onclick = function() {g_animations=false;};
 }
 
 function initTextures() {
@@ -213,7 +199,7 @@ function initTextures() {
     return false;
   }
   image.onload = function() { sendImageToTEXTURE0(image); };
-  image.src = 'sky.jpg';
+  image.src = 'sky2.jpg';
 
   var image1 = new Image();
   if (!image1) {
@@ -230,7 +216,6 @@ function initTextures() {
   }
   image2.onload = function() { sendImageToTEXTURE2(image2); };
   image2.src = 'grass.jpg';
-  return true;
   return true;
 }
 
@@ -312,30 +297,43 @@ function main() {
   addActionsForHtmlUI();
 
   // Register function (event handler) to be called on a mouse press
-  // canvas.onmousedown = click;
-  // canvas.onmousemove = function(ev) { if(ev.buttons == 1) { click(ev) } };
   document.onkeydown = keydown;
-  canvas.onmousemove = function(ev) { handleMouseMove(ev) };
   canvas.onclick = function() { canvas.requestPointerLock(); };
-  
+  document.addEventListener("mousemove", function(ev) {
+    if (document.pointerLockElement === canvas) {
+      let xoffset = ev.movementX;
+      let yoffset = ev.movementY;
+      xoffset *= g_mouseSensitivity;
+      yoffset *= g_mouseSensitivity;
+
+      g_yaw += xoffset;
+      g_pitch -= yoffset;
+      // Clamp pitch
+      if (g_pitch > 89) g_pitch = 89;
+      if (g_pitch < -89) g_pitch = -89;
+
+      updateCameraDirection();
+    }
+  });
   initTextures();
 
   // Specify the color for clearing <canvas>
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
   // Clear <canvas>
-  //gl.clear(gl.COLOR_BUFFER_BIT);
-  //renderAllShapes();
   requestAnimationFrame(tick);
-}
 
-var g_startTime=performance.now()/1000.0;
-var g_seconds=performance.now()/1000.0-g_startTime;
+  g_gameStarted = true;
+}
 
 function tick() {
   // Save current time
   g_seconds=performance.now()/1000.0-g_startTime;
-  //console.log(g_seconds);
+
+  if (g_gameStarted && !g_gameOver) {
+    g_elapsedTime = g_seconds;
+    checkGameRules();
+  }
 
   // Update animation angles
   updateAnimationAngles();
@@ -347,111 +345,45 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+function checkGameRules() {
+  let dx = g_eye[0] - g_catPos[0];
+  let dz = g_eye[2] - g_catPos[2];
+
+  let distance = Math.sqrt(dx*dx + dz*dz);
+
+  // Win condition
+  if (distance < 1.0) {
+    g_gameOver = true;
+    g_gameWon = true;
+    console.log("You found the cat!");
+  }
+  // Lose condition
+  if (g_elapsedTime >= g_timeLimit) {
+    g_gameOver = true;
+    g_gameWon = false;
+    console.log("Time's up!");
+  }
+}
+
 function updateAnimationAngles() {
   //scaling g_seconds increases frequency
-  g_seconds = 4*g_seconds;
-  if (g_upperArmAnimation) {
-    g_upperArmAngle = (22.5-22.5*Math.sin(g_seconds)); 
-  }
-  if (g_upperLegAnimation) {
-    g_upperLegAngle = (17.5+17.5*Math.cos(g_seconds));
-  }
-  if (g_lowerLeg1Animation) {
-    g_lowerLeg1Angle = (10-10*Math.cos(g_seconds));
-  }
-  if (g_lowerLeg2Animation) {
-    g_lowerLeg2Angle = (5-5*Math.cos(g_seconds));
-  }
-  if (g_footAnimation) {
-    g_footAngle = (25+25*Math.cos(g_seconds));
-  }
-  if (g_tailAnimation) {
-    g_tailAngle = (-45*Math.sin(g_seconds));
-  }
-}
+  let t = 4*g_seconds;
 
-var g_shapesList = [];
-function click(ev) {
-  // Extract event click and return it in WebGL coordinates
-  let [x, y] = convertCoordinatesEventToGL(ev);
-
-  // Create and store new point
-  let point;
-  if (g_selectedType==POINT){
-    point = new Point();
-  } else if (g_selectedType==TRIANGLE) {
-    point = new Triangle();
+  if (g_animations) {
+    g_upperArmAngle = (22.5-22.5*Math.sin(t));
+    g_upperLegAngle = (17.5+17.5*Math.cos(t));
+    g_lowerLeg1Angle = (10-10*Math.cos(t));
+    g_lowerLeg2Angle = (5-5*Math.cos(t));
+    g_footAngle = (25+25*Math.cos(t));
+    g_tailAngle = (-45*Math.sin(t));
   } else {
-    point = new Circle();
-    point.segment = g_selectedSegments;
+    g_upperArmAngle = IDLE_UPPER_ARM;
+    g_upperLegAngle = IDLE_UPPER_LEG;
+    g_lowerLeg1Angle = IDLE_LOWER_LEG1;
+    g_lowerLeg2Angle = IDLE_LOWER_LEG2;
+    g_footAngle = IDLE_FOOT;
+    g_tailAngle = IDLE_TAIL;
   }
-  point.position=[x,y];
-  point.color=g_selectedColor.slice();
-  point.size=g_selectedSize;
-  g_shapesList.push(point);
-
-  // Draw every shape that is supposed to be in the canvas
-  renderAllShapes();
-}
-
-function convertCoordinatesEventToGL(ev) {
-  var x = ev.clientX; // x coordinate of a mouse pointer
-  var y = ev.clientY; // y coordinate of a mouse pointer
-  var rect = ev.target.getBoundingClientRect();
-
-  x = ((x - rect.left) - canvas.width/2)/(canvas.width/2);
-  y = (canvas.height/2 - (y - rect.top))/(canvas.height/2);
-
-  return([x, y]);
-}
-
-function handleMouseMove(ev) {
-  // let x = ev.clientX; let y = ev.clientY;
-
-  // if (g_firstMouse) {
-  //   g_lastX = x;
-  //   g_lastY = y;
-  //   g_firstMouse = false;
-  // }
-
-  // let xoffset = x - g_lastX;
-  // let yoffset = g_lastY - y;
-
-  // g_lastX = x;
-  // g_lastY = y;
-
-  // xoffset *= g_mouseSensitivity;
-  // yoffset *= g_mouseSensitivity;
-
-  // g_yaw += xoffset;
-  // g_pitch += yoffset;
-
-  // if (g_pitch > 89) g_pitch = 89;
-  // if (g_pitch < - 89) g_pitch = -89;
-
-  // updateCameraDirection();
-
-  document.addEventListener("mousemove", function(ev) {
-
-    if (document.pointerLockElement === canvas) {
-
-      let xoffset = ev.movementX;
-      let yoffset = ev.movementY;
-
-      xoffset *= g_mouseSensitivity;
-      yoffset *= g_mouseSensitivity;
-
-      g_yaw += xoffset;
-      g_pitch -= yoffset;  // invert for natural feel
-
-      // Clamp pitch
-      if (g_pitch > 89) g_pitch = 89;
-      if (g_pitch < -89) g_pitch = -89;
-
-      updateCameraDirection();
-    }
-  });
-
 }
 
 function updateCameraDirection() {
@@ -467,6 +399,20 @@ function updateCameraDirection() {
   g_at[2] = g_eye[2] + dz;
 }
 
+function canMoveTo(x, z) {
+  let mapX = Math.floor(x + g_map.length/2);
+  let mapZ = Math.floor(z + g_map[0].length/2);
+
+  // Outside the map = blocked
+  if (
+    mapX < 0 || mapX >= g_map.length || 
+    mapZ < 0 || mapZ >= g_map[0].length
+  ) return false;
+
+  // Any value > 0 is a wall
+  return g_map[mapX][mapZ] == 0;
+}
+
 function keydown(ev) {
   const speed = 0.2;
 
@@ -474,59 +420,56 @@ function keydown(ev) {
   let fx = g_at[0] - g_eye[0];
   let fy = g_at[1] - g_eye[1];
   let fz = g_at[2] - g_eye[2];
-  // Normalize forward
-  let flen = Math.sqrt(fx*fx + fy*fy + fz*fz);
-  fx /= flen; fy /= flen; fz /= flen;
+  fy = 0;
 
-  // Compute right vector
-  let rx = fy * g_up[2] - fz * g_up[1];
-  let ry = fz * g_up[0] - fx * g_up[2];
-  let rz = fx * g_up[1] - fy * g_up[0];
-  // Normalize right
-  let rlen = Math.sqrt(rx*rx + ry*ry + rz*rz);
-  rx /= rlen; ry /= rlen; rz /= rlen;
+  let flen = Math.sqrt(fx*fx + fz*fz);
+  if (flen > 0.0001) {
+    fx /= flen;
+    fz /= flen;
+  }
+
+  let rx = -fz;
+  let rz = fx;
+
+  // Check if can move to empty space
+  function tryMove(dx, dz) {
+    let newX = g_eye[0] + dx;
+    let newZ = g_eye[2] + dz;
+
+    const hitbox = 0.1; //hitbox for pov
+    if (
+      canMoveTo(newX+hitbox, newZ) &&
+      canMoveTo(newX-hitbox, newZ) &&
+      canMoveTo(newX, newZ+hitbox) &&
+      canMoveTo(newX, newZ-hitbox)
+    ) {
+      g_eye[0] = newX;
+      g_eye[2] = newZ;
+      g_at[0] += dx;
+      g_at[2] += dz;
+    }
+  }
 
   if (ev.keyCode==87) { // W - go forward
-    //g_eye[2] -= 0.2; 
-    g_eye[0] += fx * speed;
-    g_eye[1] += fy * speed;
-    g_eye[2] += fz * speed;
+    tryMove(fx * speed, fz * speed);
   } else if (ev.keyCode==83) { // S - go backward
-    //g_eye[2] += 0.2;
-    g_eye[0] -= fx * speed;
-    g_eye[1] -= fy * speed;
-    g_eye[2] -= fz * speed;
+    tryMove(-fx * speed, -fz * speed);
   } else if (ev.keyCode==65) { // A - go left
-    //g_eye[0] -= 0.2;
-    g_eye[0] -= rx * speed;
-    g_eye[1] -= ry * speed;
-    g_eye[2] -= rz * speed;
+    tryMove(-rx * speed, -rz * speed);
   } else if (ev.keyCode==68) { // D - go right
-    //g_eye[0] += 0.2;
-    g_eye[0] += rx * speed;
-    g_eye[1] += ry * speed;
-    g_eye[2] += rz * speed;
+    tryMove(rx * speed, rz * speed);
   } else if (ev.keyCode==81) { // Q - look left
     rotateView(5);
   } else if (ev.keyCode==69) { // E - look right
     rotateView(-5);
   } 
-  // For debugging purposes, remove afterwards
-  else if (ev.keyCode==32) { // Spacebar - go up
-    g_eye[1] += speed;
-    g_at[1] += speed;
-  } else if (ev.keyCode==16) { // Shift - go down
-    g_eye[1] -= speed;
-    g_at[1] -= speed;
-  }
-
-  // switch(ev.keyCode) {
-  //   case 87: g_camera.forward(); break;   // W
-  //   case 83: g_camera.back(); break;      // S
-  //   case 65: g_camera.left(); break;      // A
-  //   case 68: g_camera.right(); break;     // D
-  //   case 81: g_camera.lookLeft(); break;  // Q
-  //   case 69: g_camera.lookRight(); break; // E
+  // For debugging purposes, delete afterwards
+  // else if (ev.keyCode==32) { // Spacebar - go up
+  //   g_eye[1] += speed;
+  //   g_at[1] += speed;
+  // } else if (ev.keyCode==16) { // Shift - go down
+  //   g_eye[1] -= speed;
+  //   g_at[1] -= speed;
   // }
 
   renderAllShapes();
@@ -550,29 +493,28 @@ function rotateView(angle) {
   g_at[2] = g_eye[2] + f2.elements[2];
 }
 
-var g_eye = [0,.3,3]; // (eye, at, up) (0,.3,-1,  0,0,-100,  0,1,0) for 3rd person view
+var g_eye = [0,.3,3]; // (eye, at, up)
 var g_at = [0,0,-100];
 var g_up = [0,1,0];
-//var g_camera = new Camera(); // for when camera class is implemented
 var g_catScale = 0.5;
 
 var g_map = [
-[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
-[4, 0, 0, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0, 0, 4],
-[4, 0, 3, 3, 3, 0, 0, 0, 0, 0, 3, 0, 3, 0, 0, 4],
-[4, 3, 3, 0, 3, 3, 3, 0, 3, 3, 3, 0, 3, 3, 3, 4],
-[4, 0, 3, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 3, 4],
-[4, 0, 3, 0, 3, 3, 3, 0, 3, 0, 2, 2, 2, 0, 0, 4],
-[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 4],
-[4, 3, 0, 3, 3, 3, 3, 3, 3, 0, 0, 0, 2, 3, 0, 4],
-[4, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 3, 0, 4],
-[4, 0, 0, 3, 0, 3, 3, 0, 3, 0, 0, 0, 2, 0, 0, 4],
-[4, 0, 3, 3, 0, 0, 3, 0, 3, 0, 2, 2, 2, 0, 3, 4],
-[4, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 4],
-[4, 3, 0, 3, 3, 0, 3, 3, 3, 3, 0, 3, 0, 3, 0, 4],
-[4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 3, 3, 0, 4],
-[4, 0, 3, 3, 3, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 4],
-[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+[3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+[3, 0, 2, 2, 2, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 3],
+[3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 0, 3],
+[3, 2, 0, 2, 2, 0, 2, 2, 2, 2, 0, 2, 0, 2, 0, 3],
+[3, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 3],
+[3, 0, 2, 2, 0, 0, 2, 0, 2, 0, 2, 2, 2, 0, 2, 3],
+[3, 0, 0, 2, 0, 2, 2, 0, 2, 0, 0, 0, 2, 0, 0, 3],
+[3, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 3],
+[3, 2, 0, 2, 2, 2, 2, 2, 2, 0, 0, 0, 2, 2, 0, 3],
+[3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 3],
+[3, 0, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 0, 3],
+[3, 0, 2, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 2, 3],
+[3, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 3],
+[3, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 0, 2, 0, 0, 3],
+[3, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 3],
+[3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
 ];
 
 function drawMap() {
@@ -598,7 +540,6 @@ function drawMap() {
             wall.textureNum=1;
           }
 
-          wall.matrix.scale(1,1,1);
           wall.matrix.translate(
             x - g_map.length/2,
             y - 1,
@@ -614,17 +555,20 @@ function drawMap() {
 
 function drawCat() {
   let catRoot = new Matrix4();
-  catRoot.translate(0,0,0); // don't move for now, change to goal location later
+  catRoot.translate(-6.3,-.4,-6.5); // goal location
+  //catRoot.translate(0, -.4, 2); // debug location, delete later
+  catRoot.rotate(-90,0,1,0);
   catRoot.scale(g_catScale, g_catScale, g_catScale);
   
-  // Set uniform color variable
+  // Set uniform color and texture variables
   var uniformColor = [.25,.22,.22,1];
+  var uniformTextureNum=-2;
 
   // Draw body cube
   var body = new Cube();
   body.color = uniformColor;
-  body.textureNum=-2;
-  //body.matrix = new Matrix4(catRoot);
+  body.textureNum = uniformTextureNum;
+  body.matrix = new Matrix4(catRoot);
   body.matrix.translate(-.15,-.3,-.4);
   body.matrix.rotate(0,1,0,0);
   body.matrix.scale(.3,.45,1.2);
@@ -633,9 +577,9 @@ function drawCat() {
   // Draw left fore leg
   var leftarm = new Cube();
   leftarm.color = uniformColor;
-  leftarm.textureNum=-2;
-  leftarm.matrix.setTranslate(.1,-.1,-.33);
-  //leftarm.matrix.rotate(0,1,0,0);
+  leftarm.textureNum = uniformTextureNum;
+  leftarm.matrix = new Matrix4(catRoot);
+  leftarm.matrix.translate(.1,-.1,-.33);
   leftarm.matrix.rotate(180-g_upperArmAngle,1,0,0); 
   var lForearm = new Matrix4(leftarm.matrix);
   leftarm.matrix.scale(.12,.45,-.2);
@@ -663,7 +607,9 @@ function drawCat() {
   // Draw right fore leg
   var rightarm = new Cube();
   rightarm.color = uniformColor;
-  rightarm.matrix.setTranslate(-0.1,-.1,-.33);
+  rightarm.textureNum = uniformTextureNum;
+  rightarm.matrix = new Matrix4(catRoot);
+  rightarm.matrix.translate(-0.1,-.1,-.33);
   //rightarm.matrix.rotate(-5,1,0,0);
   rightarm.matrix.rotate(135+g_upperArmAngle,1,0,0); 
   var rForearm = new Matrix4(rightarm.matrix);
@@ -692,7 +638,9 @@ function drawCat() {
   // Draw left hind leg
   var leftleg = new Cube();
   leftleg.color = uniformColor;
-  leftleg.matrix.setTranslate(0.1,0,0.7);
+  leftleg.textureNum = uniformTextureNum;
+  leftleg.matrix = new Matrix4(catRoot);
+  leftleg.matrix.translate(0.1,0,0.7);
   leftleg.matrix.rotate(180+g_upperLegAngle,1,0,0);
   var lHindleg1 = new Matrix4(leftleg.matrix);
   leftleg.matrix.translate(0,-.07,.15);
@@ -731,7 +679,9 @@ function drawCat() {
   // Draw right hind leg
   var rightleg = new Cube();
   rightleg.color = uniformColor;
-  rightleg.matrix.setTranslate(-.24,0,0.7);
+  rightleg.textureNum = uniformTextureNum;
+  rightleg.matrix = new Matrix4(catRoot);
+  rightleg.matrix.translate(-.24,0,0.7);
   rightleg.matrix.rotate(215-g_upperLegAngle,1,0,0);
   var rHindleg1 = new Matrix4(rightleg.matrix);
   rightleg.matrix.translate(0,-.07,.15);
@@ -770,7 +720,9 @@ function drawCat() {
   // Draw head
   var head = new Cube();
   head.color = uniformColor;
-  head.matrix.setTranslate(-.185,.03,-.66);
+  head.textureNum = uniformTextureNum;
+  head.matrix = new Matrix4(catRoot);
+  head.matrix.translate(-.185,.03,-.66);
   var box = new Matrix4(head.matrix);
   head.matrix.rotate(0,0,1,0);
   head.matrix.scale(.375,.33,.375);
@@ -820,7 +772,9 @@ function drawCat() {
   // Draw tail
   var tail1 = new Cylinder();
   tail1.color = uniformColor;
-  tail1.matrix.setTranslate(0, .1, .7);
+  tail1.textureNum = uniformTextureNum;
+  tail1.matrix = new Matrix4(catRoot);
+  tail1.matrix.translate(0, .1, .7);
   tail1.matrix.rotate(-g_tailAngle,0,1,0);
   var t2 = new Matrix4(tail1.matrix);
   tail1.matrix.rotate(65,1,0,0);
@@ -846,22 +800,14 @@ function renderAllShapes() {
 
   var viewMat = new Matrix4();
   viewMat.setLookAt(g_eye[0], g_eye[1], g_eye[2], g_at[0], g_at[1], g_at[2], g_up[0], g_up[1], g_up[2]);
-  // viewMat.setLookAt(
-  //     g_camera.eye.elements[0], g_camera.eye.elements[1],  g_camera.eye.elements[2],
-  //     g_camera.at.elements[0],  g_camera.at.elements[1],   g_camera.at.elements[2],
-  //     g_camera.up.elements[0],  g_camera.up.elements[1],   g_camera.up.elements[2]); 
   gl.uniformMatrix4fv(u_ViewMatrix, false, viewMat.elements);
 
   var globalRotMat = new Matrix4().rotate(g_globalAngle,0,1,0);
-  //globalRotMat.translate(0, 0, g_zoom/45);
   gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
 
   // Clear <canvas>
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.clear(gl.COLOR_BUFFER_BIT); 
-
-  // Draw the map
-  //drawMap();
 
   // Draw floor
   var body = new Cube();
@@ -879,19 +825,24 @@ function renderAllShapes() {
   sky.matrix.translate(-.5,-.5,-.5);
   sky.render();
 
+  // Draw the map
+  drawMap();
+  // Draw cat
   drawCat();
-
-  // var K = 10.0;
-  // for (var i=1; i<K; i++) {
-  //   var c = new Cube();
-  //   c.matrix.translate(-.8, 1.9*i/K-1.0, 0);
-  //   c.matrix.rotate(g_seconds*100,1,1,1);
-  //   c.matrix.scale(.1, .5/K, 1.0/K);
-  //   c.render();
-  // }
   
   var duration = performance.now() - startTime;
   sendTextToHTML("ms: " + Math.floor(duration) + " fps: " + Math.floor(10000/duration)/10, "ms");
+
+  // Display Game Time
+  let status = "";
+  if (!g_gameOver) {
+    status = "Time: " + g_elapsedTime.toFixed(1);
+  } else if (g_gameWon) {
+    status = "You found the cat! Time: " + g_elapsedTime.toFixed(1);
+  } else {
+    status = "Time's up!";
+  }
+  sendTextToHTML(status, "timer");
 }
 
 function sendTextToHTML(text, htmlID) {

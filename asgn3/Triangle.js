@@ -77,6 +77,12 @@ function drawTriangle3D(vertices) {
 function drawTriangle3DUV(vertices, uv) {
   var n = vertices.length / 3; // The number of vertices
 
+  if (uv.length / 2 !== n) {
+    console.log("UV count does NOT match vertex count");
+    console.log("verts:", n, "uv:", uv.length / 2);
+    return;
+  }
+
   // Create a buffer object
   var vertexBuffer = gl.createBuffer();
   if (!vertexBuffer) {

@@ -1,3 +1,6 @@
+// Was never implemented in Asgn3
+// Here for future implementation
+
 class Camera {
     constructor() {
         // this.eye=new Vector(0,0,3);
