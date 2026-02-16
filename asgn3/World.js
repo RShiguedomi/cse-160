@@ -20,14 +20,20 @@ var FSHADER_SOURCE = `
   varying vec2 v_UV;
   uniform vec4 u_FragColor;
   uniform sampler2D u_Sampler0;
+  uniform sampler2D u_Sampler1;
+  uniform sampler2D u_Sampler2;
   uniform int u_whichTexture;
   void main() {
     if (u_whichTexture == -2) {                   // Use color
       gl_FragColor = u_FragColor;
     } else if (u_whichTexture == -1) {            // Use UV debug color
       gl_FragColor = vec4(v_UV,1.0,1.0);
-    } else if (u_whichTexture == 0) {             // Use Texture0
+    } else if (u_whichTexture == 0) {             // Use Texture0 = sky.jpg
       gl_FragColor = texture2D(u_Sampler0, v_UV);
+    } else if (u_whichTexture == 1) {             // Use Texture1 = stone wall.jpg
+      gl_FragColor = texture2D(u_Sampler1, v_UV);
+    } else if (u_whichTexture == 2) {             // Use Texture2 = grass.jpg
+      gl_FragColor = texture2D(u_Sampler2, v_UV);
     } else {                                      // Error, put Redish
       gl_FragColor = vec4(1,.2,.2,1);  
     }
@@ -44,8 +50,10 @@ let u_ModelMatrix;
 let u_GlobalRotateMatrix;
 let u_ViewMatrix;
 let u_ProjectionMatrix;
-let u_Sampler0;
 let u_whichTexture;
+let u_Sampler0;
+let u_Sampler1;
+let u_Sampler2;
 
 function setupWebGL() {
   // Retrieve <canvas> element
@@ -115,15 +123,27 @@ function connectVariablesToGLSL() {
     return;
   }
 
+  u_whichTexture = gl.getUniformLocation(gl.program, 'u_whichTexture');
+  if (!u_whichTexture) {
+    console.log('Failed to get storage location of u_whichTexture');
+    return false;
+  }
+
   u_Sampler0 = gl.getUniformLocation(gl.program, 'u_Sampler0');
   if (!u_Sampler0) {
     console.log('Failed to get storage location of u_Sampler0');
     return false;
   }
 
-  u_whichTexture = gl.getUniformLocation(gl.program, 'u_whichTexture');
-  if (!u_whichTexture) {
-    console.log('Failed to get storage location of u_whichTexture');
+  u_Sampler1 = gl.getUniformLocation(gl.program, 'u_Sampler1');
+  if (!u_Sampler1) {
+    console.log('Failed to get storage location of u_Sampler1');
+    return false;
+  }
+
+  u_Sampler2 = gl.getUniformLocation(gl.program, 'u_Sampler2');
+  if (!u_Sampler2) {
+    console.log('Failed to get storage location of u_Sampler2');
     return false;
   }
 
@@ -153,6 +173,12 @@ let g_tailAngle=0;
 let g_footAngle=0;
 let g_globalAngle=0;
 let g_zoom=0;
+// Mouse movement
+var g_yaw = -90; // Horizontal
+var g_pitch = 0; // Vertical
+var g_mouseSensitivity = 0.0005;
+var g_lastX, g_lastY;
+var g_firstMouse = true;
 
 // Set up actions for HTML UI elements
 function addActionsForHtmlUI() {
@@ -166,18 +192,18 @@ function addActionsForHtmlUI() {
   document.getElementById('animationLowerLeg2OffButton').onclick = function() {g_lowerLeg2Animation=false;};
   document.getElementById('animationTailOnButton').onclick = function() {g_tailAnimation=true;};
   document.getElementById('animationTailOffButton').onclick = function() {g_tailAnimation=false;};
-  document.getElementById('animationFootOnButton').onclick = function() {g_footAnimation=true;};
-  document.getElementById('animationFootOffButton').onclick = function() {g_footAnimation=false;};
+  //document.getElementById('animationFootOnButton').onclick = function() {g_footAnimation=true;};
+  //document.getElementById('animationFootOffButton').onclick = function() {g_footAnimation=false;};
 
   document.getElementById('upperArmSlide').addEventListener('mousemove', function() { g_upperArmAngle = this.value; renderAllShapes(); });
   document.getElementById('upperLegSlide').addEventListener('mousemove', function() { g_upperLegAngle = this.value; renderAllShapes(); });
   document.getElementById('lowerLeg1Slide').addEventListener('mousemove', function() { g_lowerLeg1Angle = this.value; renderAllShapes(); });
   document.getElementById('lowerLeg2Slide').addEventListener('mousemove', function() { g_lowerLeg2Angle = this.value; renderAllShapes(); });
   document.getElementById('tailSlide').addEventListener('mousemove', function() { g_tailAngle = this.value; renderAllShapes(); });
-  document.getElementById('footSlide').addEventListener('mousemove', function() { g_footAngle = this.value; renderAllShapes(); });
+  //document.getElementById('footSlide').addEventListener('mousemove', function() { g_footAngle = this.value; renderAllShapes(); });
 
   document.getElementById('angleSlide').addEventListener('mousemove', function() { g_globalAngle = this.value; renderAllShapes(); });
-  document.getElementById('zoomSlide').addEventListener('mousemove', function() { g_zoom = this.value; renderAllShapes(); });
+  //document.getElementById('zoomSlide').addEventListener('mousemove', function() { g_zoom = this.value; renderAllShapes(); });
 }
 
 function initTextures() {
@@ -186,11 +212,25 @@ function initTextures() {
     console.log('Failed to create image object');
     return false;
   }
-
   image.onload = function() { sendImageToTEXTURE0(image); };
   image.src = 'sky.jpg';
 
-  // Add more texture loading
+  var image1 = new Image();
+  if (!image1) {
+    console.log('Failed to create image object');
+    return false;
+  }
+  image1.onload = function() { sendImageToTEXTURE1(image1); };
+  image1.src = 'stone wall.jpeg';
+
+  var image2 = new Image();
+  if (!image2) {
+    console.log('Failed to create image object');
+    return false;
+  }
+  image2.onload = function() { sendImageToTEXTURE2(image2); };
+  image2.src = 'grass.jpg';
+  return true;
   return true;
 }
 
@@ -217,6 +257,52 @@ function sendImageToTEXTURE0(image) {
   console.log('finished loadTexture');
 }
 
+function sendImageToTEXTURE1(image) {
+  var texture = gl.createTexture();
+  if (!texture) {
+    console.log('Failed to create texture object');
+    return false;
+  }
+  // Flip image's y axis
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+  // Enable texture unit0 (0-8)
+  gl.activeTexture(gl.TEXTURE1);
+  // Bind texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+  // Set texture unit 1 to sampler
+  gl.uniform1i(u_Sampler1, 1);
+  
+  console.log('finished loadTexture');
+}
+
+function sendImageToTEXTURE2(image) {
+  var texture = gl.createTexture();
+  if (!texture) {
+    console.log('Failed to create texture object');
+    return false;
+  }
+  // Flip image's y axis
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+  // Enable texture unit0 (0-8)
+  gl.activeTexture(gl.TEXTURE2);
+  // Bind texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+  // Set texture unit 2 to sampler
+  gl.uniform1i(u_Sampler2, 2);
+  
+  console.log('finished loadTexture');
+}
+
 function main() {
   // Set up canvas and gl variables
   setupWebGL();
@@ -229,6 +315,8 @@ function main() {
   // canvas.onmousedown = click;
   // canvas.onmousemove = function(ev) { if(ev.buttons == 1) { click(ev) } };
   document.onkeydown = keydown;
+  canvas.onmousemove = function(ev) { handleMouseMove(ev) };
+  canvas.onclick = function() { canvas.requestPointerLock(); };
   
   initTextures();
 
@@ -317,69 +405,226 @@ function convertCoordinatesEventToGL(ev) {
   return([x, y]);
 }
 
+function handleMouseMove(ev) {
+  // let x = ev.clientX; let y = ev.clientY;
+
+  // if (g_firstMouse) {
+  //   g_lastX = x;
+  //   g_lastY = y;
+  //   g_firstMouse = false;
+  // }
+
+  // let xoffset = x - g_lastX;
+  // let yoffset = g_lastY - y;
+
+  // g_lastX = x;
+  // g_lastY = y;
+
+  // xoffset *= g_mouseSensitivity;
+  // yoffset *= g_mouseSensitivity;
+
+  // g_yaw += xoffset;
+  // g_pitch += yoffset;
+
+  // if (g_pitch > 89) g_pitch = 89;
+  // if (g_pitch < - 89) g_pitch = -89;
+
+  // updateCameraDirection();
+
+  document.addEventListener("mousemove", function(ev) {
+
+    if (document.pointerLockElement === canvas) {
+
+      let xoffset = ev.movementX;
+      let yoffset = ev.movementY;
+
+      xoffset *= g_mouseSensitivity;
+      yoffset *= g_mouseSensitivity;
+
+      g_yaw += xoffset;
+      g_pitch -= yoffset;  // invert for natural feel
+
+      // Clamp pitch
+      if (g_pitch > 89) g_pitch = 89;
+      if (g_pitch < -89) g_pitch = -89;
+
+      updateCameraDirection();
+    }
+  });
+
+}
+
+function updateCameraDirection() {
+  let yawRad = g_yaw * Math.PI / 180;
+  let pitchRad = g_pitch * Math.PI / 180;
+
+  let dx = Math.cos(pitchRad) * Math.cos(yawRad);
+  let dy = Math.sin(pitchRad);
+  let dz = Math.cos(pitchRad) * Math.sin(yawRad);
+
+  g_at[0] = g_eye[0] + dx;
+  g_at[1] = g_eye[1] + dy;
+  g_at[2] = g_eye[2] + dz;
+}
+
 function keydown(ev) {
-  if (ev.keyCode==65) { // A - go left
-    g_eye[0] += 0.2;
-  } else if (ev.keyCode==68) {  // D - go right
-    g_eye[0] -= 0.2;
+  const speed = 0.2;
+
+  // Compute forward vector
+  let fx = g_at[0] - g_eye[0];
+  let fy = g_at[1] - g_eye[1];
+  let fz = g_at[2] - g_eye[2];
+  // Normalize forward
+  let flen = Math.sqrt(fx*fx + fy*fy + fz*fz);
+  fx /= flen; fy /= flen; fz /= flen;
+
+  // Compute right vector
+  let rx = fy * g_up[2] - fz * g_up[1];
+  let ry = fz * g_up[0] - fx * g_up[2];
+  let rz = fx * g_up[1] - fy * g_up[0];
+  // Normalize right
+  let rlen = Math.sqrt(rx*rx + ry*ry + rz*rz);
+  rx /= rlen; ry /= rlen; rz /= rlen;
+
+  if (ev.keyCode==87) { // W - go forward
+    //g_eye[2] -= 0.2; 
+    g_eye[0] += fx * speed;
+    g_eye[1] += fy * speed;
+    g_eye[2] += fz * speed;
+  } else if (ev.keyCode==83) { // S - go backward
+    //g_eye[2] += 0.2;
+    g_eye[0] -= fx * speed;
+    g_eye[1] -= fy * speed;
+    g_eye[2] -= fz * speed;
+  } else if (ev.keyCode==65) { // A - go left
+    //g_eye[0] -= 0.2;
+    g_eye[0] -= rx * speed;
+    g_eye[1] -= ry * speed;
+    g_eye[2] -= rz * speed;
+  } else if (ev.keyCode==68) { // D - go right
+    //g_eye[0] += 0.2;
+    g_eye[0] += rx * speed;
+    g_eye[1] += ry * speed;
+    g_eye[2] += rz * speed;
+  } else if (ev.keyCode==81) { // Q - look left
+    rotateView(5);
+  } else if (ev.keyCode==69) { // E - look right
+    rotateView(-5);
+  } 
+  // For debugging purposes, remove afterwards
+  else if (ev.keyCode==32) { // Spacebar - go up
+    g_eye[1] += speed;
+    g_at[1] += speed;
+  } else if (ev.keyCode==16) { // Shift - go down
+    g_eye[1] -= speed;
+    g_at[1] -= speed;
   }
+
+  // switch(ev.keyCode) {
+  //   case 87: g_camera.forward(); break;   // W
+  //   case 83: g_camera.back(); break;      // S
+  //   case 65: g_camera.left(); break;      // A
+  //   case 68: g_camera.right(); break;     // D
+  //   case 81: g_camera.lookLeft(); break;  // Q
+  //   case 69: g_camera.lookRight(); break; // E
+  // }
 
   renderAllShapes();
   console.log(ev.keyCode);
 }
 
-var g_eye = [0,0,3]; // (eye, at, up) (0,1,2,  0,0,-100,  0,1,0) for 3rd person view
+function rotateView(angle) {
+  let f = new Vector3([
+    g_at[0] - g_eye[0],
+    g_at[1] - g_eye[1],
+    g_at[2] - g_eye[2]
+  ]);
+
+  let rotMat = new Matrix4();
+  rotMat.setRotate(angle, g_up[0], g_up[1], g_up[2]);
+
+  let f2 = rotMat.multiplyVector3(f);
+
+  g_at[0] = g_eye[0] + f2.elements[0];
+  g_at[1] = g_eye[1] + f2.elements[1];
+  g_at[2] = g_eye[2] + f2.elements[2];
+}
+
+var g_eye = [0,.3,3]; // (eye, at, up) (0,.3,-1,  0,0,-100,  0,1,0) for 3rd person view
 var g_at = [0,0,-100];
 var g_up = [0,1,0];
+//var g_camera = new Camera(); // for when camera class is implemented
+var g_catScale = 0.5;
 
-function renderAllShapes() {
-  // Check time at start of this function
-  var startTime = performance.now();
+var g_map = [
+[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+[4, 0, 0, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0, 0, 4],
+[4, 0, 3, 3, 3, 0, 0, 0, 0, 0, 3, 0, 3, 0, 0, 4],
+[4, 3, 3, 0, 3, 3, 3, 0, 3, 3, 3, 0, 3, 3, 3, 4],
+[4, 0, 3, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 3, 4],
+[4, 0, 3, 0, 3, 3, 3, 0, 3, 0, 2, 2, 2, 0, 0, 4],
+[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 4],
+[4, 3, 0, 3, 3, 3, 3, 3, 3, 0, 0, 0, 2, 3, 0, 4],
+[4, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 3, 0, 4],
+[4, 0, 0, 3, 0, 3, 3, 0, 3, 0, 0, 0, 2, 0, 0, 4],
+[4, 0, 3, 3, 0, 0, 3, 0, 3, 0, 2, 2, 2, 0, 3, 4],
+[4, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 4],
+[4, 3, 0, 3, 3, 0, 3, 3, 3, 3, 0, 3, 0, 3, 0, 4],
+[4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 3, 3, 0, 4],
+[4, 0, 3, 3, 3, 3, 0, 0, 0, 3, 0, 0, 0, 0, 0, 4],
+[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+];
 
-  var projMat = new Matrix4();
-  projMat.setPerspective(50, 1*canvas.width/canvas.height, .1, 100);
-  gl.uniformMatrix4fv(u_ProjectionMatrix, false, projMat.elements);
+function drawMap() {
+  // Draw the map based on g_map array
+  for (let x = 0; x < g_map.length; x++) {
+    for (let z = 0; z < g_map[x].length; z++) {
 
-  var viewMat = new Matrix4();
-  viewMat.setLookAt(g_eye[0], g_eye[1], g_eye[2], g_at[0], g_at[1], g_at[2], g_up[0], g_up[1], g_up[2]);
-  // viewMat.setLookAt(
-  //     g_camera.eye.x, g_camera.eye.y,  g_camera.eye.z,
-  //     g_camera.at.x,  g_camera.at.y,   g_camera.at.z,
-  //     g_camera.up.x,  g_camera.up.y,   g_camera.up.z);
-  viewMat.setLookAt(0,1,2,  0,0,-100,  0,1,0); 
-  gl.uniformMatrix4fv(u_ViewMatrix, false, viewMat.elements);
+      if (g_map[x][z] > 0) {
+        // height of wall (value in map)
+        let height = g_map[x][z];
+        let isBorder = (
+          x == 0 || x == g_map.length -1 || 
+          z == 0 || z == g_map[x].length - 1
+        );
 
-  var globalRotMat = new Matrix4().rotate(g_globalAngle,0,1,0);
-  globalRotMat.translate(0, 0, g_zoom/45);
-  gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
+        for (let y = 0; y < height; y++) {
 
-  // Clear <canvas>
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.clear(gl.COLOR_BUFFER_BIT); 
+          let wall = new Cube();
+          if (isBorder) {
+            wall.color = [.8,1,1,1];
+          } else {
+            wall.color = [0,.4,0,1];
+            wall.textureNum=1;
+          }
 
+          wall.matrix.scale(1,1,1);
+          wall.matrix.translate(
+            x - g_map.length/2,
+            y - 1,
+            z - g_map.length/2
+          );
+
+          wall.renderfast();
+        }
+      }
+    }
+  }
+}
+
+function drawCat() {
+  let catRoot = new Matrix4();
+  catRoot.translate(0,0,0); // don't move for now, change to goal location later
+  catRoot.scale(g_catScale, g_catScale, g_catScale);
+  
   // Set uniform color variable
   var uniformColor = [.25,.22,.22,1];
-
-  // Draw floor
-  var body = new Cube();
-  body.color = [1.0,0.0,0.0,1.0];
-  body.textureNum=-2;
-  body.matrix.translate(0, -.8, 0);
-  body.matrix.scale(10, 0, 10);
-  body.matrix.translate(-.5, 0, -.5);
-  body.render();
-
-  var sky = new Cube();
-  sky.color = [1.0,0.0,0.0,1.0];
-  sky.textureNum=1;
-  sky.matrix.scale(50,50,50);
-  sky.matrix.translate(-.5,-.5,-.5);
-  sky.render();
 
   // Draw body cube
   var body = new Cube();
   body.color = uniformColor;
-  body.textureNum=0;
+  body.textureNum=-2;
+  //body.matrix = new Matrix4(catRoot);
   body.matrix.translate(-.15,-.3,-.4);
   body.matrix.rotate(0,1,0,0);
   body.matrix.scale(.3,.45,1.2);
@@ -388,7 +633,7 @@ function renderAllShapes() {
   // Draw left fore leg
   var leftarm = new Cube();
   leftarm.color = uniformColor;
-  leftarm.textureNum=0;
+  leftarm.textureNum=-2;
   leftarm.matrix.setTranslate(.1,-.1,-.33);
   //leftarm.matrix.rotate(0,1,0,0);
   leftarm.matrix.rotate(180-g_upperArmAngle,1,0,0); 
@@ -469,7 +714,7 @@ function renderAllShapes() {
   leftHindleg2.matrix = new Matrix4(lHindleg2);
   leftHindleg2.matrix.translate(.01,.23,-.12);
   leftHindleg2.matrix.rotate(95-g_lowerLeg2Angle,1,0,0);
-  var lFoot = new Matrix4(leftHindleg2.matrix);
+  //var lFoot = new Matrix4(leftHindleg2.matrix);
   leftHindleg2.matrix.translate(0,-.07,.02);
   leftHindleg2.matrix.scale(.1,.4,-.15);
   leftHindleg2.render();
@@ -508,7 +753,7 @@ function renderAllShapes() {
   rightHindleg2.matrix = new Matrix4(rHindleg2);
   rightHindleg2.matrix.translate(.01,.23,-.12);
   rightHindleg2.matrix.rotate(90-g_lowerLeg2Angle,1,0,0);
-  var rFoot = new Matrix4(rightHindleg2.matrix);
+  //var rFoot = new Matrix4(rightHindleg2.matrix);
   rightHindleg2.matrix.translate(0,-.07,.02);
   rightHindleg2.matrix.scale(.1,.4,-.15);
   rightHindleg2.render();
@@ -589,6 +834,52 @@ function renderAllShapes() {
   tail2.matrix.rotate(45,1,0,0);
   tail2.matrix.scale(.05,.3,.05);
   tail2.render();
+}
+
+function renderAllShapes() {
+  // Check time at start of this function
+  var startTime = performance.now();
+
+  var projMat = new Matrix4();
+  projMat.setPerspective(50, 1*canvas.width/canvas.height, .1, 1000);
+  gl.uniformMatrix4fv(u_ProjectionMatrix, false, projMat.elements);
+
+  var viewMat = new Matrix4();
+  viewMat.setLookAt(g_eye[0], g_eye[1], g_eye[2], g_at[0], g_at[1], g_at[2], g_up[0], g_up[1], g_up[2]);
+  // viewMat.setLookAt(
+  //     g_camera.eye.elements[0], g_camera.eye.elements[1],  g_camera.eye.elements[2],
+  //     g_camera.at.elements[0],  g_camera.at.elements[1],   g_camera.at.elements[2],
+  //     g_camera.up.elements[0],  g_camera.up.elements[1],   g_camera.up.elements[2]); 
+  gl.uniformMatrix4fv(u_ViewMatrix, false, viewMat.elements);
+
+  var globalRotMat = new Matrix4().rotate(g_globalAngle,0,1,0);
+  //globalRotMat.translate(0, 0, g_zoom/45);
+  gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
+
+  // Clear <canvas>
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT); 
+
+  // Draw the map
+  //drawMap();
+
+  // Draw floor
+  var body = new Cube();
+  body.color = [1.0,0.0,0.0,1.0];
+  body.textureNum=2;
+  body.matrix.translate(0, -.8, 0);
+  body.matrix.scale(20, 0, 20);
+  body.matrix.translate(-.5, 0, -.5);
+  body.render();
+
+  var sky = new Cube();
+  sky.color = [1.0,0.0,0.0,1.0];
+  sky.textureNum=0;
+  sky.matrix.scale(50,50,50);
+  sky.matrix.translate(-.5,-.5,-.5);
+  sky.render();
+
+  drawCat();
 
   // var K = 10.0;
   // for (var i=1; i<K; i++) {
@@ -611,129 +902,3 @@ function sendTextToHTML(text, htmlID) {
   }
   htmlElm.innerHTML = text;
 }
-
-// function drawMyPicture() {
-//   gl.clear(gl.COLOR_BUFFER_BIT);
-//   function drawTri(coords, color) {
-//     gl.uniform4f(u_FragColor, color[0], color[1], color[2], color[3]);
-//     drawTriangle(coords);
-//   }
-
-//   // Head
-//   drawTri([-0.4, 0.3,  0.4, 0.3,  0.4, -0.1], [0.24,0.16,0,1]);
-//   drawTri([-0.4, 0.3,  -0.4, -0.1,  0.4, -0.1], [0.24,0.16,0,1]);
-//   drawTri([-0.4, 0.3,  -0.35, 0.4,  0.0, 0.3], [0.24,0.16,0,1]);
-//   drawTri([-0.35, 0.4,  -0.05, 0.4,  0.0, 0.3], [0.24,0.16,0,1]);
-//   drawTri([0.4, 0.3,  0.35, 0.4,  0.0, 0.3], [0.24,0.16,0,1]);
-//   drawTri([0.35, 0.4,  0.05, 0.4,  0.0, 0.3], [0.24,0.16,0,1]);
-//   drawTri([-0.4, -0.1,  -0.35, -0.2,  0.4, -0.1], [0.24,0.16,0,1]);
-//   drawTri([-0.35, -0.2,  0.35, -0.2,  0.4, -0.1], [0.24,0.16,0,1]);
-
-//   // Eyes & Mouth
-//   drawTri([-0.3, 0.05,  -0.1, 0.05,  -0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([-0.3, 0.05,  -0.3, 0.25,  -0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([-0.3, 0.25,  -0.25, 0.3,  -0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([-0.15, 0.3,  -0.25, 0.3,  -0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([-0.3, 0.05,  -0.1, 0.05,  -0.25, 0.0], [0,0.14,0.04,1]);
-//   drawTri([-0.15, 0.0,  -0.1, 0.05,  -0.25, 0.0], [0,0.14,0.04,1]);
-//   drawTri([0.3, 0.05,  0.1, 0.05,  0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([0.3, 0.05,  0.3, 0.25,  0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([0.3, 0.25,  0.25, 0.3,  0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([0.15, 0.3,  0.25, 0.3,  0.1, 0.25], [0,0.14,0.04,1]);
-//   drawTri([0.3, 0.05,  0.1, 0.05,  0.25, 0.0], [0,0.14,0.04,1]);
-//   drawTri([0.15, 0.0,  0.1, 0.05,  0.25, 0.0], [0,0.14,0.04,1]);
-//   drawTri([-0.2, 0.2,  -0.16, 0.23,  -0.125, 0.2], [0.8,0.36,0.36,1]);
-//   drawTri([-0.2, 0.2,  -0.16, 0.12,  -0.125, 0.2], [0.8,0.36,0.36,1]);
-//   drawTri([-0.2, 0.2,  -0.16, 0.12,  -0.2, 0.15], [0.8,0.36,0.36,1]);
-//   drawTri([-0.125, 0.15,  -0.16, 0.12,  -0.125, 0.2], [0.8,0.36,0.36,1]);
-//   drawTri([0.2, 0.2,  0.16, 0.23,  0.125, 0.2], [0.8,0.36,0.36,1]);
-//   drawTri([0.2, 0.2,  0.16, 0.12,  0.125, 0.2], [0.8,0.36,0.36,1]);
-//   drawTri([0.2, 0.2,  0.16, 0.12,  0.2, 0.15], [0.8,0.36,0.36,1]);
-//   drawTri([0.125, 0.15,  0.16, 0.12,  0.125, 0.2], [0.8,0.36,0.36,1]);
-
-//   drawTri([-0.05, -0.1,  0.0, -0.05,  0.05, -0.1], [0,0.14,0.04,1]);
-//   drawTri([-0.05, -0.1,  0.0, -0.15,  0.05, -0.1], [0,0.14,0.04,1]);
-
-//   // Horns
-//   drawTri([-0.4, 0.0,  -0.4, 0.2,  -0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([-0.7, 0.2,  -0.4, 0.2,  -0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([-0.7, 0.2,  -0.8, 0.1,  -0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([-0.7, 0.2,  -0.65, 0.3,  -0.6, 0.2], [0.24,0.16,0,1]);
-//   drawTri([-0.7, 0.2,  -0.65, 0.3,  -0.75, 0.3], [0.24,0.16,0,1]);
-//   drawTri([-0.7, 0.2,  -0.8, 0.1,  -0.8, 0.4], [0.24,0.16,0,1]);
-//   drawTri([-0.8, 0.2,  -0.9, 0.25,  -0.9, 0.4], [0.24,0.16,0,1]);
-//   drawTri([-0.8, 0.2,  -0.8, 0.6,  -0.9, 0.4], [0.24,0.16,0,1]);
-
-//   drawTri([0.4, 0.0,  0.4, 0.2,  0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([0.7, 0.2,  0.4, 0.2,  0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([0.7, 0.2,  0.8, 0.1,  0.7, 0.0], [0.24,0.16,0,1]);
-//   drawTri([0.7, 0.2,  0.65, 0.3,  0.6, 0.2], [0.24,0.16,0,1]);
-//   drawTri([0.7, 0.2,  0.65, 0.3,  0.75, 0.3], [0.24,0.16,0,1]);
-//   drawTri([0.7, 0.2,  0.8, 0.1,  0.8, 0.4], [0.24,0.16,0,1]);
-//   drawTri([0.8, 0.2,  0.9, 0.25,  0.9, 0.4], [0.24,0.16,0,1]);
-//   drawTri([0.8, 0.2,  0.8, 0.6,  0.9, 0.4], [0.24,0.16,0,1]);
-
-//   // Leaves
-//   drawTri([0.8, 0.4,  0.7, 0.4,  0.6, 0.45], [0.2,0.29,0.13,1]);
-//   drawTri([0.8, 0.4,  0.7, 0.45,  0.6, 0.45], [0.2,0.29,0.13,1]);
-//   drawTri([-0.8, 0.4,  -0.7, 0.4,  -0.6, 0.45], [0.2,0.29,0.13,1]);
-//   drawTri([-0.8, 0.4,  -0.7, 0.45,  -0.6, 0.45], [0.2,0.29,0.13,1]);
-//   drawTri([0.8, 0.15,  0.9, 0.2,  1, 0.2], [0.2,0.29,0.13,1]);
-//   drawTri([0.8, 0.15,  0.9, 0.15,  1, 0.2], [0.2,0.29,0.13,1]);
-//   drawTri([-0.8, 0.15,  -0.9, 0.2,  -1, 0.2], [0.2,0.29,0.13,1]);
-//   drawTri([-0.8, 0.15,  -0.9, 0.15,  -1, 0.2], [0.2,0.29,0.13,1]);
-
-
-//   // Initials
-//   drawTri([-0.2, -0.4,  -0.2, -0.6,  -0.1, -0.6], [0.2,0.24,0.0,1]);
-//   drawTri([-0.2, -0.4,  -0.1, -0.35,  -0.1, -0.6], [0.2,0.24,0.0,1]);
-//   drawTri([0.0, -0.45,  -0.1, -0.35,  -0.1, -0.55], [0.2,0.24,0.0,1]);
-//   drawTri([-0.05, -0.5,  -0.05, -0.6,  -0.1, -0.55], [0.2,0.24,0.0,1]);
-//   drawTri([-0.05, -0.5,  -0.05, -0.6,  0.0, -0.55], [0.2,0.24,0.0,1]);
-//   drawTri([0.0, -0.6,  -0.05, -0.6,  0.0, -0.55], [0.2,0.24,0.0,1]);
-
-//   drawTri([0.1, -0.35,  0.1, -0.45,  0.0, -0.4], [0.2,0.24,0.0,1]);
-//   drawTri([0.1, -0.35,  0.1, -0.45,  0.2, -0.4], [0.2,0.24,0.0,1]);
-//   drawTri([0.1, -0.5,  0.1, -0.6,  0.0, -0.55], [0.2,0.24,0.0,1]);
-//   drawTri([0.1, -0.5,  0.1, -0.6,  0.2, -0.55], [0.2,0.24,0.0,1]);
-//   drawTri([0.0, -0.55,  0.0, -0.5,  0.1, -0.5], [0.2,0.24,0.0,1]);
-//   drawTri([0.2, -0.45,  0.2, -0.4,  0.1, -0.45], [0.2,0.24,0.0,1]);
-//   drawTri([0.0, -0.4,  0.0, -0.45,  0.2, -0.5], [0.2,0.24,0.0,1]);
-//   drawTri([0.2, -0.55,  0.0, -0.45,  0.2, -0.5], [0.2,0.24,0.0,1]);
-
-//   // Head & Body Wisps
-//   drawTri([-0.05, 0.4,  0.0, 0.3,  0.05, 0.4], [0,0.14,0.04,1]);
-//   drawTri([-0.05, 0.4,  0.1, 0.4,  0.1, 0.5], [0,0.14,0.04,1]);
-//   drawTri([0.2, 0.4,  0.1, 0.4,  0.1, 0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.05, 0.4,  0.05, 0.6,  0.1, 0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.05, 0.4,  -0.2, 0.4,  0.0, 0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.2, 0.5,  -0.2, 0.4,  0.0, 0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.2, 0.5,  0.0, 0.6,  0.0, 0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.2, 0.5,  0.0, 0.6,  -0.15, 0.6], [0,0.14,0.04,1]);
-//   drawTri([-0.05, 0.7,  0.0, 0.6,  -0.15, 0.6], [0,0.14,0.04,1]);
-//   drawTri([0.0, 0.5,  0.1, 0.7,  0.0, 0.8], [0,0.14,0.04,1]);
-//   drawTri([0.0, 0.6,  -0.1, 0.8,  0.0, 0.9], [0,0.14,0.04,1]);
-
-//   drawTri([-0.1, -0.2,  -0.2, -0.4,  -0.1, -0.35], [0,0.14,0.04,1]);
-//   drawTri([-0.1, -0.2,  0.0, -0.4,  -0.1, -0.35], [0,0.14,0.04,1]);
-//   drawTri([-0.1, -0.2,  0.0, -0.4,  0.1, -0.2], [0,0.14,0.04,1]);
-//   drawTri([0.1, -0.2,  0.2, -0.4,  0.1, -0.35], [0,0.14,0.04,1]);
-//   drawTri([0.1, -0.2,  0.0, -0.4,  0.1, -0.35], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.45,  0.0, -0.4,  -0.1, -0.35], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.45,  0.0, -0.55,  -0.05, -0.5], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.45,  0.1, -0.5,  0.0, -0.5], [0,0.14,0.04,1]);
-//   drawTri([0.2, -0.45,  0.1, -0.45,  0.2, -0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.1, -0.55,  -0.1, -0.6,  -0.05, -0.6], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.55,  0.1, -0.6,  0.0, -0.6], [0,0.14,0.04,1]);
-//   drawTri([0.2, -0.55,  0.1, -0.6,  0.2, -0.6], [0,0.14,0.04,1]);
-//   drawTri([-0.1, -0.4,  -0.1, -0.5,  -0.05, -0.45], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.8,  0.2, -0.6,  -0.2, -0.6], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.8,  -0.15, -0.7,  -0.2, -0.6], [0,0.14,0.04,1]);
-//   drawTri([0.0, -0.8,  0.2, -0.6,  0.2, -0.8], [0,0.14,0.04,1]);
-//   drawTri([0.2, -0.8,  0.2, -0.6,  0.4, -0.7], [0,0.14,0.04,1]);
-//   drawTri([0.45, -0.6,  0.2, -0.6,  0.4, -0.7], [0,0.14,0.04,1]);
-//   drawTri([0.45, -0.6,  0.2, -0.6,  0.5, -0.5], [0,0.14,0.04,1]);
-//   drawTri([0.45, -0.6,  0.6, -0.7,  0.5, -0.5], [0,0.14,0.04,1]);
-//   drawTri([-0.2, -0.4,  -0.2, -0.5,  -0.35, -0.4], [0,0.14,0.04,1]);
-//   drawTri([0.2, -0.4,  0.2, -0.5,  0.35, -0.4], [0,0.14,0.04,1]);
-// }
