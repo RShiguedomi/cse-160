@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Change a point color</title>
+  </head>
+
+  <body onload="main()">
+    <canvas id="webgl" width="500" height="500">
+    Please use a browser that supports "canvas"
+    </canvas>
+    <p>
+
+    <p id="ms"> XXX </p> 
+    <p id="timer"> Time: 0.0</p>
+
+    <p>
+    Find the cat in the maze within the time limit to win the game!
+    <p>
+    You can click on the canvas to move the camera with your mouse.
+    </p>
+    Press Esc to leave the canvas if you want to turn on or off cat animation.
+    <p>
+    Cat Animation:
+    <button id="animationOnButton">On</button>
+    <button id="animationOffButton">Off</button>
+    </p>
+
+    <button id="normalOn">Normal On</button>
+    <button id="normalOff">Normal Off</button>
+    </p>
+
+    <script src="lib/webgl-utils.js"></script>
+    <script src="lib/webgl-debug.js"></script>
+    <script src="lib/cuon-utils.js"></script>
+    <script src="lib/cuon-matrix.js"></script>
+    <script src="Circle.js"></script>
+    <script src="Triangle.js"></script>
+    <script src="Point.js"></script>
+    <script src="Cube.js"></script>
+    <script src="Cylinder.js"></script>
+    <script src="Sphere.js"></script>
+    <script src="Camera.js"></script>
+    <script src="World.js"></script>
+  </body>
+</html>
