@@ -117,6 +117,7 @@
 
     // Pass the matrix to u_ModelMatrix attribute
     gl.uniformMatrix4fv(u_ModelMatrix, false, this.matrix.elements);
+    gl.uniformMatrix4fv(u_NormalMatrix, false, this.normalMatrix.elements);
     
     var verts = [];
     var uv = [];
