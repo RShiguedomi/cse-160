@@ -3,6 +3,7 @@ class Cylinder {
     this.type = 'cylinder';
     this.color = [1,1,1,1];
     this.matrix = new Matrix4();
+    this.normalMatrix = new Matrix4();
     this.segments = segments;
   }
 
@@ -10,6 +11,7 @@ class Cylinder {
     var rgba = this.color;
 
     gl.uniformMatrix4fv(u_ModelMatrix, false, this.matrix.elements);
+    gl.uniformMatrix4fv(u_NormalMatrix, false, this.normalMatrix.elements);
 
     let step = 2 * Math.PI / this.segments;
 
