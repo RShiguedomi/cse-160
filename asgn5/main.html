@@ -4,7 +4,45 @@
     <meta charset="utf-8">
     <title>My first three.js app</title>
     <style>
-      body { margin: 0; }
+      body { margin: 0; overflow: hidden; background: #000; }
+      #ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-family: white;
+        font-size: 14px;
+        background: rgba(0,0,0,0.5);
+        padding: 10px;
+        border-radius: 6px;
+        user-select: none;
+      }#ui button {
+        margin: 2px;
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      #crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 24px;
+        pointer-events: none;
+      }
+      #instructions {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-family: monospace;
+        font-size: 13px;
+        background: rgba(0,0,0,0.6);
+        padding: 8px 14px;
+        border-radius: 6px;
+        text-align: center;
+      }
     </style>
     <script type="importmap">
     {
@@ -16,6 +54,20 @@
 </script>
   </head>
   <body>
+    <div id="ui">
+      <div id="ms">FPS: --</div>
+      <div id="timer">Time: 0.0</div>
+      <!-- <hr>
+      Cat Animation:
+      <button id="animationOnButton">On</button>
+      <button id="animationOffButton">Off</button>
+      <br>
+      Light:
+      <button id="lightOn">On</button>
+      <button id="lightOff">Off</button> -->
+    </div>
+    <div id="crosshair">+</div>
+    <div id="instructions">Click to capture mouse &nbsp;|&nbsp; WASD: Move &nbsp;|&nbsp; Mouse: Look &nbsp;|&nbsp; Esc: Release mouse</div>
     <script type="module" src="./main.js"></script>
   </body>
 </html>

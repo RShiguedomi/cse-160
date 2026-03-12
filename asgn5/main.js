@@ -31,16 +31,19 @@ function makeColorTexture(hex) {
 	return new THREE.CanvasTexture(canvas);
 }
 // Replace with texLoader.load('yourfile.jpg') when serving from local server
-const skyTex = makeColorTexture('#87ceeb'); // swap -> texLoader.load('sky2.jpg')
-const wallTex = makeColorTexture('#888888'); // swap → texLoader.load('stone wall.jpeg')
-const grassTex = makeColorTexture('#3a7d44'); // swap → texLoader.load('grass.jpg')\
+//const skyTex = makeColorTexture('#87ceeb'); // swap -> texLoader.load('sky2.jpg')
+const skyTex = texLoader.load('./public/sky2.jpg');
+//const wallTex = makeColorTexture('#888888'); // swap → texLoader.load('stone wall.jpeg')
+const wallTex = texLoader.load('./public/stone wall.jpeg');
+//const grassTex = makeColorTexture('#3a7d44'); // swap → texLoader.load('grass.jpg')
+const grassTex = texLoader.load('./public/grass.jpg');
 
 // Materials
-const wallMat   = new THREE.MeshLambertMaterial({ map: wallTex });
-const borderMat = new THREE.MeshLambertMaterial({ color: 0xccffff });
-const grassMat  = new THREE.MeshLambertMaterial({ map: grassTex });
+const wallMat   = new THREE.MeshPhongMaterial({ map: wallTex, shininess: 40 });
+const borderMat = new THREE.MeshPhongMaterial({ map: wallTex, shininess: 60 });
+const grassMat  = new THREE.MeshPhongMaterial({ map: grassTex, shininess: 10 });
 const skyMat    = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
-const catMat    = new THREE.MeshLambertMaterial({ color: 0x403838 });
+//const catMat    = new THREE.MeshLambertMaterial({ color: 0x403838 });
 
 // Lights
 // Ambient
@@ -60,7 +63,7 @@ dirLight.shadow.camera.bottom = -30;
 scene.add(dirLight);
 
 // Point light
-const pointLight = new THREE.PointLight(0xffff99, 1.5, 80);
+const pointLight = new THREE.PointLight(0xffff99, 3, 0);
 pointLight.position.set(0, 15, 0);
 pointLight.castShadow = true;
 scene.add(pointLight);
@@ -105,6 +108,7 @@ const g_map = [
 ];
 
 // Build walls
+const pyramidMat = new THREE.MeshPhongMaterial({ map: wallTex, shininess: 60 });
 const wallGeo = new THREE.BoxGeometry(1, 1, 1);
 for (let x = 0; x < g_map.length; x++) {
 	for (let z = 0; z < g_map[x].length; z++) {
@@ -128,80 +132,41 @@ for (let x = 0; x < g_map.length; x++) {
 		}
 	}
 }
+for (let x = 0; x < g_map.length; x++) {
+  for (let z = 0; z < g_map[x].length; z++) {
+    const isBorder = (x === 0 || x === g_map.length - 1 || z === 0 || z === g_map[x].length - 1);
 
-// Cat
-const CAT_POS = new THREE.Vector3(-6.3, -0.4, -6.5);
-const catGroup = new THREE.Group();
-catGroup.position.copy(CAT_POS);
-catGroup.rotation.y = Math.PI/2;
-
-function makePart(sx, sy, sz, tx, ty, tz, mat) {
-	const geo = new THREE.BoxGeometry(sx, sy, sz);
-	const mesh = new THREE.Mesh(geo, mat || catMat);
-	mesh.position.set(tx, ty, tz);
-	mesh.castShadow = true;
-	return mesh;
+    if (isBorder) {
+      const height = g_map[x][z]; // border walls are height 3
+      const pyramidGeo = new THREE.ConeGeometry(0.75, 1, 4); // 4-sided cone = pyramid
+      const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+      pyramid.position.set(
+        x - g_map.length / 2,
+        height - 1 + 0.5,   // sits on top of the wall stack
+        z - g_map[x].length / 2
+      );
+      pyramid.rotation.y = Math.PI / 4; // rotate 45° so flat faces align with walls
+      pyramid.castShadow = true;
+      scene.add(pyramid);
+    }
+  }
 }
-
-// Body
-catGroup.add(makePart(0.3, 0.45, 1.2, 0, 0, 0));
-// Head
-catGroup.add(makePart(0.375, 0.33, 0.375, 0, 0.3, -0.66));
-// Eyes
-const eyeMat = new THREE.MeshLambertMaterial({ color: 0xffff00 });
-catGroup.add(makePart(0.07, 0.07, 0.02, 0.09, 0.41, -0.845, eyeMat));
-catGroup.add(makePart(0.07, 0.07, 0.02, -0.09, 0.41, -0.845, eyeMat));
-// Ears
-catGroup.add(makePart(0.09, 0.15, 0.09, 0.12, 0.55, -0.66));
-catGroup.add(makePart(0.09, 0.15, 0.09, -0.12, 0.55, -0.66));
-// Nose
-catGroup.add(makePart(0.15, 0.12, 0.075, 0, 0.22, -0.85));
-
-// Legs
-const legParts = {};
-function makeLeg(name, sx, sy, sz, tx, ty, tz) {
-	const group = new THREE.Group();
-	group.position.set(tx, ty, tz);
-	const mesh = makePart(sx, sy, sz, 0, -sy/2, 0);
-	group.add(mesh);
-	catGroup.add(group);
-	legParts[name] = group;
-	return group;
-}
-
-// Forelegs
-makeLeg('lForeUpper',  0.12, 0.45, 0.2,   0.1, -0.1, -0.33);
-makeLeg('rForeUpper', -0.12, 0.45, 0.2,  -0.1, -0.1, -0.33);
-// Hind legs
-makeLeg('lHindUpper',  0.14, 0.55, 0.25,  0.24, 0.0,  0.7);
-makeLeg('rHindUpper',  0.14, 0.55, 0.25, -0.24, 0.0,  0.7);
-
-// Tail
-const tailGeo1 = new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8);
-const tail1 = new THREE.Mesh(tailGeo1, catMat);
-tail1.position.set(0, 0.1, 0.7);
-tail1.rotation.x = THREE.MathUtils.degToRad(65);
-catGroup.add(tail1);
-
-const tailGroup = new THREE.Group();
-tailGroup.position.set(0, 0.1, 0.7);
-const tailGeo2 = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
-const tail2 = new THREE.Mesh(tailGeo2, catMat);
-tail2.position.set(0, 0.32, 0.14);
-tail2.rotation.x = THREE.MathUtils.degToRad(45);
-tailGroup.add(tail2);
-catGroup.add(tailGroup);
-
-scene.add(catGroup);
 
 // GLTF Model Loader
-// Uncomment and set correct path when have .glb model:
-// const gltfLoader = new GLTFLoader();
-// gltfLoader.load('./YourModel.glb', (gltf) => {
-//   gltf.scene.position.set(0, -0.8, -5);
-//   gltf.scene.scale.set(0.5, 0.5, 0.5);
-//   scene.add(gltf.scene);
-// }, undefined, (err) => console.error(err));
+const CAT_POS = new THREE.Vector3(-6.8, -0.4, -7);
+const gltfLoader = new GLTFLoader();
+let catModel = null;
+gltfLoader.load('./public/oiiaioooooiai_cat.glb', (gltf) => {
+  catModel = gltf.scene;
+  catModel.position.copy(CAT_POS);
+  catModel.position.y = -0.8;
+  catModel.rotation.y = Math.PI / 2;
+  catModel.scale.set(1, 1, 1); // adjust if too big/small
+  catModel.traverse((child) => {
+    if (child.isMesh) child.castShadow = true;
+  });
+  scene.add(catModel);
+}, undefined, (err) => console.error('GLB load errorL:', err));
 
 // Game State
 let g_animations = false;
@@ -255,8 +220,9 @@ document.addEventListener('keydown', (ev) => { keys[ev.code] = true; });
 document.addEventListener('keyup',   (ev) => { keys[ev.code] = false; });
 
 function processMovement() {
-  const speed = 0.07;
+  const speed = 0.02;
   const pos = camera.position;
+  const hitbox = 0.2;
 
   // Forward direction (ignore Y)
   const dir = new THREE.Vector3();
@@ -264,28 +230,36 @@ function processMovement() {
   dir.y = 0;
   dir.normalize();
 
-  const right = new THREE.Vector3();
+  const right = new THREE.Vector3(-dir.z, 0, dir.x);
   right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
 
   function tryMove(dx, dz) {
-    const hitbox = 0.3;
     const nx = pos.x + dx;
     const nz = pos.z + dz;
-    if (
-      canMoveTo(nx + hitbox, nz) &&
-      canMoveTo(nx - hitbox, nz) &&
-      canMoveTo(nx, nz + hitbox) &&
-      canMoveTo(nx, nz - hitbox)
-    ) {
-      pos.x = nx;
-      pos.z = nz;
-    }
+    const canX = (
+      canMoveTo(nx + hitbox, pos.z) &&
+      canMoveTo(nx - hitbox, pos.z) &&
+      canMoveTo(nx, pos.z + hitbox) &&
+      canMoveTo(nx, pos.z - hitbox)
+    );
+    const canZ = (
+      canMoveTo(pos.x + hitbox, nz) &&
+      canMoveTo(pos.x - hitbox, nz) &&
+      canMoveTo(pos.x, nz + hitbox) &&
+      canMoveTo(pos.x, nz - hitbox)
+    );
+    if (canX) pos.x = nx;
+    if (canZ) pos.z = nz;
   }
 
 	if (keys['KeyW']) tryMove( dir.x * speed,  dir.z * speed);
   if (keys['KeyS']) tryMove(-dir.x * speed, -dir.z * speed);
   if (keys['KeyA']) tryMove(-right.x * speed, -right.z * speed);
   if (keys['KeyD']) tryMove( right.x * speed,  right.z * speed);
+
+  // For debugging, comment out later
+  // if (keys['Space'])      pos.y += speed;
+  // if (keys['ShiftLeft'] || keys['ShiftRight']) pos.y -= speed;
 
   updateCameraDirection();
 }
@@ -296,32 +270,15 @@ function updateAnimations(seconds) {
 
   // Orbiting point light (always on)
   const radius = 20;
-  const speed  = 0.3;
+  const speed  = 0.1;
   const t2 = seconds * speed;
   pointLight.position.set(radius * Math.cos(t2), 15, radius * Math.sin(t2));
   lightSphere.position.copy(pointLight.position);
+  dirLight.position.copy(pointLight.position);
 
   // Cat limb animation
-  if (g_animations) {
-    const lFU = legParts['lForeUpper'];
-    const rFU = legParts['rForeUpper'];
-    const lHU = legParts['lHindUpper'];
-    const rHU = legParts['rHindUpper'];
-
-    const swing = THREE.MathUtils.degToRad(22.5 - 22.5 * Math.sin(t));
-    lFU.rotation.x =  swing;
-    rFU.rotation.x = -swing;
-    lHU.rotation.x =  swing;
-    rHU.rotation.x = -swing;
-
-    // Tail wag
-    tailGroup.rotation.y = THREE.MathUtils.degToRad(-45 * Math.sin(t));
-  } else {
-    legParts['lForeUpper'].rotation.x = 0;
-    legParts['rForeUpper'].rotation.x = 0;
-    legParts['lHindUpper'].rotation.x = 0;
-    legParts['rHindUpper'].rotation.x = 0;
-    tailGroup.rotation.y = 0;
+  if (g_animations && catModel) {
+    catModel.rotation.y = Math.PI / 2 + 0.3 * Math.sin(t);
   }
 }
 
@@ -342,7 +299,7 @@ function checkGameRules() {
 }
 
 // HTML UI
-//document.getElementById('animationOnButton').onclick  = () => { g_animations = true; };
+// document.getElementById('animationOnButton').onclick  = () => { g_animations = true; };
 // document.getElementById('animationOffButton').onclick = () => { g_animations = false; };
 // document.getElementById('lightOn').onclick  = () => {
 //   g_lightOn = true;
